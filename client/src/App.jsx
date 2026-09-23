@@ -10,11 +10,14 @@ import Profile from './pages/Profile.jsx';
 import Products from './pages/Products.jsx';
 import ProductDetails from './pages/ProductDetails.jsx';
 import Checkout from './pages/Checkout.jsx';
+import Orders from './pages/Orders.jsx';
 import OrderSuccess from './pages/OrderSuccess.jsx';
 import OrderDetails from './pages/OrderDetails.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
+import AdminRoute from './components/AdminRoute.jsx';
 import { Cart } from './pages/Cart.jsx';
 import { Wishlist } from './pages/Wishlist.jsx';
+import AdminDashboard from './pages/AdminDashboard.jsx';
 
 export default function App() {
   return (
@@ -39,6 +42,22 @@ export default function App() {
                 <Route path="/products/:id" element={<ProductDetails />} />
                 <Route path="/cart" element={<Cart />} />
                 <Route path="/checkout" element={<Checkout />} />
+                <Route
+                  path="/admin"
+                  element={
+                    <AdminRoute>
+                      <AdminDashboard />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/orders"
+                  element={
+                    <ProtectedRoute>
+                      <Orders />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="/order-success" element={<OrderSuccess />} />
                 <Route path="/order-details/:orderId" element={<OrderDetails />} />
                 <Route path="/wishlist" element={<Wishlist />} />

@@ -4,11 +4,11 @@ import { authenticate } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
-router.post("/orders/create", authenticate, orderController.createOrderFromCart);
-router.post("/payments/create-checkout-session/:orderId", authenticate, orderController.createCheckoutSession);
-router.post("/payments/webhook", orderController.webhook);
-router.get("/orders/me", authenticate, orderController.getUserOrders);
-router.get("/orders/:orderId", authenticate, orderController.getOrderDetails);
-router.post("/orders/:orderId/cancel", authenticate, orderController.cancelOrder);
+router.post("/", authenticate, orderController.createOrderFromCart);
+router.get("/", authenticate, orderController.getUserOrders);
+router.post("/checkout-session/:orderId", authenticate, orderController.createCheckoutSession);
+router.post("/webhook", orderController.webhook);
+router.get("/:orderId", authenticate, orderController.getOrderDetails);
+router.put("/:orderId/cancel", authenticate, orderController.cancelOrder);
 
 export default router;

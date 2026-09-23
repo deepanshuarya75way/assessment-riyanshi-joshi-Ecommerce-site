@@ -1,7 +1,18 @@
+import mongoose from 'mongoose';
 import { validationResult } from 'express-validator';
 import Review from '../models/review.model.js';
 import Product from '../models/product.model.js';
 import Order from '../models/order.model.js';
+
+const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
+
+const getEligibleProductOrder = async (userId, productId) =>
+  Order.findOne({
+    user: userId,
+    'items.product': productId,
+    paymentStatus: 'paid',
+    status: { $ne: 'cancelled' },
+  }).lean();
 
 export const createReview = async (req, res) => {
   try {
@@ -18,7 +29,13 @@ export const createReview = async (req, res) => {
     const productId = req.params.productId;
     const user = req.user;
 
-    // Find product
+    if (!isValidObjectId(productId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid product ID',
+      });
+    }
+
     const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({
@@ -27,21 +44,22 @@ export const createReview = async (req, res) => {
       });
     }
 
-    // Verify purchase: find an order for this user that contains this product
-    const order = await Order.findOne({
-      user: user._id,
-      'items.product': productId,
-      paymentStatus: 'paid',
-    }).lean();
-
-    if (!order) {
-      return res.status(403).json({
+    const validRating = Number(rating);
+    if (!Number.isInteger(validRating) || validRating < 1 || validRating > 5) {
+      return res.status(400).json({
         success: false,
-        message: 'You must purchase this product before reviewing it',
+        message: 'Rating must be between 1 and 5',
       });
     }
 
-    // Prevent duplicate review
+    const trimmedComment = typeof comment === 'string' ? comment.trim() : '';
+    if (!trimmedComment) {
+      return res.status(400).json({
+        success: false,
+        message: 'Review comment is required',
+      });
+    }
+
     const existingReview = await Review.findOne({ product: productId, user: user._id });
     if (existingReview) {
       return res.status(400).json({
@@ -50,17 +68,23 @@ export const createReview = async (req, res) => {
       });
     }
 
-    // Create review
+    const eligibleOrder = await getEligibleProductOrder(user._id, productId);
+    if (!eligibleOrder) {
+      return res.status(403).json({
+        success: false,
+        message: 'You must purchase this product before reviewing it',
+      });
+    }
+
     const review = await Review.create({
       user: user._id,
       product: productId,
-      order: order._id,
-      rating,
-      title,
-      comment,
+      order: eligibleOrder._id,
+      rating: validRating,
+      title: typeof title === 'string' ? title.trim() : '',
+      comment: trimmedComment,
     });
 
-    // Recalculate product rating
     await recalculateProductRating(productId);
 
     return res.status(201).json({
@@ -80,13 +104,26 @@ export const createReview = async (req, res) => {
 export const getProductReviews = async (req, res) => {
   try {
     const productId = req.params.productId;
+    if (!isValidObjectId(productId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid product ID',
+      });
+    }
+
+    const productExists = await Product.exists({ _id: productId });
+    if (!productExists) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found',
+      });
+    }
+
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 10;
     const skip = (page - 1) * limit;
 
-    // Only show approved reviews (or all if you want)
     const filter = { product: productId };
-
     const totalReviews = await Review.countDocuments(filter);
     const reviews = await Review.find(filter)
       .populate('user', 'fullName username')
@@ -98,7 +135,7 @@ export const getProductReviews = async (req, res) => {
       success: true,
       reviews,
       currentPage: page,
-      totalPages: Math.ceil(totalReviews / limit),
+      totalPages: Math.ceil(totalReviews / limit) || 1,
       totalReviews,
     });
   } catch (error) {
@@ -113,8 +150,14 @@ export const getProductReviews = async (req, res) => {
 export const getMyReview = async (req, res) => {
   try {
     const productId = req.params.productId;
-    const user = req.user;
+    if (!isValidObjectId(productId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid product ID',
+      });
+    }
 
+    const user = req.user;
     const review = await Review.findOne({ product: productId, user: user._id }).select(
       'rating title comment isApproved'
     );
@@ -140,6 +183,45 @@ export const getMyReview = async (req, res) => {
   }
 };
 
+export const getReviewEligibility = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const user = req.user;
+
+    if (!isValidObjectId(productId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid product ID',
+      });
+    }
+
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found',
+      });
+    }
+
+    const review = await Review.findOne({ product: productId, user: user._id }).lean();
+    const eligibleOrder = await getEligibleProductOrder(user._id, productId);
+
+    return res.status(200).json({
+      success: true,
+      reviewed: Boolean(review),
+      eligible: Boolean(eligibleOrder),
+      canReview: Boolean(eligibleOrder) && !review,
+      review: review || null,
+    });
+  } catch (error) {
+    console.error('[review] Get review eligibility error:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to check review eligibility',
+    });
+  }
+};
+
 export const updateReview = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -155,6 +237,13 @@ export const updateReview = async (req, res) => {
     const { reviewId } = req.params;
     const user = req.user;
 
+    if (!isValidObjectId(reviewId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid review ID',
+      });
+    }
+
     const review = await Review.findById(reviewId);
     if (!review) {
       return res.status(404).json({
@@ -163,7 +252,6 @@ export const updateReview = async (req, res) => {
       });
     }
 
-    // Check ownership
     if (review.user.toString() !== user._id.toString()) {
       return res.status(403).json({
         success: false,
@@ -171,20 +259,27 @@ export const updateReview = async (req, res) => {
       });
     }
 
-    // Update fields
-    if (rating !== undefined) {
-      review.rating = rating;
+    const validRating = Number(rating);
+    if (!Number.isInteger(validRating) || validRating < 1 || validRating > 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rating must be between 1 and 5',
+      });
     }
-    if (title !== undefined) {
-      review.title = title;
+
+    const trimmedComment = typeof comment === 'string' ? comment.trim() : '';
+    if (!trimmedComment) {
+      return res.status(400).json({
+        success: false,
+        message: 'Review comment is required',
+      });
     }
-    if (comment !== undefined) {
-      review.comment = comment;
-    }
+
+    review.rating = validRating;
+    review.title = typeof title === 'string' ? title.trim() : '';
+    review.comment = trimmedComment;
 
     await review.save();
-
-    // Recalculate product rating
     await recalculateProductRating(review.product);
 
     return res.status(200).json({
@@ -206,6 +301,13 @@ export const deleteReview = async (req, res) => {
     const { reviewId } = req.params;
     const user = req.user;
 
+    if (!isValidObjectId(reviewId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid review ID',
+      });
+    }
+
     const review = await Review.findById(reviewId);
     if (!review) {
       return res.status(404).json({
@@ -214,7 +316,6 @@ export const deleteReview = async (req, res) => {
       });
     }
 
-    // Check ownership
     if (review.user.toString() !== user._id.toString()) {
       return res.status(403).json({
         success: false,
@@ -223,10 +324,7 @@ export const deleteReview = async (req, res) => {
     }
 
     const productId = review.product;
-
     await Review.findByIdAndDelete(reviewId);
-
-    // Recalculate product rating
     await recalculateProductRating(productId);
 
     return res.status(200).json({

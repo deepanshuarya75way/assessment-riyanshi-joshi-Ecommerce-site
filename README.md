@@ -76,8 +76,13 @@ cp server/.env.example server/.env
 
 ```
 PORT=5000
+NODE_ENV=development
 MONGO_URI=<your-mongodb-connection-string>
 CLIENT_URL=http://localhost:5173
+JWT_SECRET=<development-only-secret>
+JWT_EXPIRES_IN=7d
+STRIPE_SECRET_KEY=<development-stripe-secret>
+STRIPE_WEBHOOK_SECRET=<development-webhook-secret>
 ```
 
 > The server starts even if `MONGO_URI` is empty, but database features will
@@ -134,3 +139,28 @@ Response:
 ```
 
 The Home page also displays a live "Backend Status" indicator based on this endpoint.
+
+## Development Demo Seed
+
+The existing `server/scripts/seedCatalog.js` is a safe, repeatable demo seed. It
+upserts fictional categories, products, a demo admin, a demo customer, a paid
+sample order, and review-eligible demo reviews. It does not delete collections
+or modify production data.
+
+Run it only against a development database. The command refuses production mode
+and requires an explicit confirmation token plus credentials supplied through
+environment variables:
+
+```bash
+cd server
+SEED_CONFIRM=SEED_DEMO_DATA \
+SEED_ADMIN_EMAIL=admin@your-demo.invalid \
+SEED_ADMIN_PASSWORD=<choose-a-development-password> \
+SEED_CUSTOMER_EMAIL=customer@your-demo.invalid \
+SEED_CUSTOMER_PASSWORD=<choose-a-development-password> \
+npm run seed:demo
+```
+
+On PowerShell, set the same variables with `$env:NAME='value'` before running
+`npm run seed:demo`. Never reuse production credentials or a production
+`MONGO_URI` for this operation.

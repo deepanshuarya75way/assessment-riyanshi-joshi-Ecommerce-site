@@ -1,17 +1,29 @@
 import { Link } from 'react-router-dom';
 
-const supportLinks = ['Help center', 'Shipping info', 'Returns', 'Contact us'];
+const quickLinks = [
+  { label: 'Categories', to: '/products' },
+  { label: "Today's deals", to: '/products?discounted=true' },
+  { label: 'New arrivals', to: '/products?sort=newest' },
+  { label: 'Top rated', to: '/products?sort=rating' },
+];
 
-function PlaceholderLinkList({ title, links }) {
+const supportLinks = [
+  { label: 'Account', to: '/login' },
+  { label: 'Orders', to: '/orders' },
+  { label: 'Wishlist', to: '/wishlist' },
+  { label: 'Shop all products', to: '/products' },
+];
+
+function FooterLinkList({ title, links }) {
   return (
     <div>
       <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400">{title}</h3>
       <ul className="mt-4 space-y-2.5">
-        {links.map((label) => (
+        {links.map(({ label, to }) => (
           <li key={label}>
-            <span className="cursor-default text-sm text-slate-400 transition hover:text-slate-200" title="Coming soon">
+            <Link to={to} className="text-sm text-slate-400 transition hover:text-slate-200">
               {label}
-            </span>
+            </Link>
           </li>
         ))}
       </ul>
@@ -31,36 +43,11 @@ export default function Footer() {
               Ecommerce<span className="text-indigo-400">-Site</span>
             </span>
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-400">
-              A modern online marketplace built to bring you everything you
-              need, all in one place.
+              A modern online marketplace built to bring you everything you need, all in one place.
             </p>
           </div>
-          <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400">Shop</h3>
-            <ul className="mt-4 space-y-2.5">
-              <li>
-                <Link to="/products" className="text-sm text-slate-400 transition hover:text-slate-200">
-                  Categories
-                </Link>
-              </li>
-              <li>
-                <span className="cursor-default text-sm text-slate-400 transition hover:text-slate-200" title="Coming soon">
-                  Today&apos;s deals
-                </span>
-              </li>
-              <li>
-                <span className="cursor-default text-sm text-slate-400 transition hover:text-slate-200" title="Coming soon">
-                  New arrivals
-                </span>
-              </li>
-              <li>
-                <span className="cursor-default text-sm text-slate-400 transition hover:text-slate-200" title="Coming soon">
-                  Best sellers
-                </span>
-              </li>
-            </ul>
-          </div>
-          <PlaceholderLinkList title="Support" links={supportLinks} />
+          <FooterLinkList title="Shop" links={quickLinks} />
+          <FooterLinkList title="Support" links={supportLinks} />
         </div>
 
         <div className="mt-12 flex flex-col items-center justify-between gap-3 border-t border-slate-800 pt-6 sm:flex-row">

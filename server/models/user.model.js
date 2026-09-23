@@ -3,6 +3,10 @@ import bcrypt from 'bcryptjs';
 
 const addressSchema = new mongoose.Schema(
   {
+    _id: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: () => new mongoose.Types.ObjectId(),
+    },
     fullName: {
       type: String,
       trim: true,
@@ -39,8 +43,7 @@ const addressSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-  },
-  { _id: false }
+  }
 );
 
 const userSchema = new mongoose.Schema(

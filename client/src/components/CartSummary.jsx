@@ -10,20 +10,27 @@ export function CartSummary() {
   if (!cart) return null;
 
   return (
-    <div className="mt-6 p-5 border-t">
-      <div className="flex justify-between mb-4">
-        <span>Total items</span>
-        <span>{cartCount}</span>
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 className="text-lg font-semibold text-slate-900">Order summary</h2>
+      <div className="mt-5 space-y-3 text-sm">
+        <div className="flex justify-between text-slate-600">
+          <span>Items</span>
+          <span>{cartCount}</span>
+        </div>
+        <div className="flex justify-between text-slate-600">
+          <span>Subtotal</span>
+          <span>${cartTotal.toFixed(2)}</span>
+        </div>
       </div>
-      <div className="flex justify-between mb-4">
-        <span>Subtotal</span>
+      <div className="mt-5 flex justify-between border-t border-slate-200 pt-4 text-base font-semibold text-slate-900">
+        <span>Total</span>
         <span>${cartTotal.toFixed(2)}</span>
       </div>
       {cart.items.length > 0 && (
         <Button
           width="100%"
           variant="primary"
-          className="mt-3"
+          className="mt-5"
           onClick={() => navigate("/checkout")}
         >
           Proceed to Checkout

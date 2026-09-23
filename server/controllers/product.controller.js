@@ -83,6 +83,8 @@ export const getProducts = async (req, res) => {
       sort,
       brand,
       minRating,
+      discounted,
+      inStock,
     } = req.query;
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -101,6 +103,14 @@ export const getProducts = async (req, res) => {
 
     if (brand) {
       filter.brand = brand;
+    }
+
+    if (discounted === 'true') {
+      filter.$expr = { $gt: ['$compareAtPrice', '$price'] };
+    }
+
+    if (inStock === 'true') {
+      filter.stock = { $gt: 0 };
     }
 
     if (minPrice !== undefined || maxPrice !== undefined) {

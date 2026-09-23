@@ -5,10 +5,16 @@ import {
   login,
   logout,
   getMe,
+  getAddresses,
+  addAddress,
+  updateAddress,
+  deleteAddress,
+  setDefaultAddress,
   updateProfile,
   changePassword,
 } from '../controllers/auth.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
+import { createRateLimiter } from '../middleware/rateLimit.middleware.js';
 
 const router = Router();
 
@@ -97,11 +103,55 @@ const changePasswordValidation = [
     .withMessage('New password must be at least 8 characters'),
 ];
 
-router.post('/register', registerValidation, register);
-router.post('/login', loginValidation, login);
+const addressValidation = [
+  body('fullName')
+    .trim()
+    .notEmpty()
+    .withMessage('Full name is required'),
+  body('phone')
+    .trim()
+    .notEmpty()
+    .withMessage('Phone number is required'),
+  body('addressLine1')
+    .trim()
+    .notEmpty()
+    .withMessage('Street address is required'),
+  body('city')
+    .trim()
+    .notEmpty()
+    .withMessage('City is required'),
+  body('state')
+    .trim()
+    .notEmpty()
+    .withMessage('State is required'),
+  body('postalCode')
+    .trim()
+    .notEmpty()
+    .withMessage('Postal code is required'),
+  body('country')
+    .trim()
+    .notEmpty()
+    .withMessage('Country is required'),
+  body('addressLine2').optional().trim(),
+  body('isDefault').optional().isBoolean().withMessage('Default flag must be a boolean'),
+];
+
+const authRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: 'Too many authentication attempts. Please try again later.',
+});
+
+router.post('/register', authRateLimiter, registerValidation, register);
+router.post('/login', authRateLimiter, loginValidation, login);
 router.post('/logout', logout);
 router.get('/me', authenticate, getMe);
+router.get('/addresses', authenticate, getAddresses);
+router.post('/addresses', authenticate, addressValidation, addAddress);
+router.put('/addresses/:addressId', authenticate, addressValidation, updateAddress);
+router.delete('/addresses/:addressId', authenticate, deleteAddress);
+router.put('/addresses/:addressId/default', authenticate, setDefaultAddress);
 router.put('/profile', authenticate, updateProfileValidation, updateProfile);
-router.put('/change-password', authenticate, changePasswordValidation, changePassword);
+router.put('/change-password', authenticate, authRateLimiter, changePasswordValidation, changePassword);
 
 export default router;

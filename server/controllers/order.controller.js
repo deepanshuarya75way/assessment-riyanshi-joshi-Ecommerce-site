@@ -1,11 +1,68 @@
 import Order from '../models/order.model.js';
 import Product from '../models/product.model.js';
+import User from '../models/user.model.js';
 import Cart from '../models/cart.model.js';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2022-08-01',
-});
+}) : null;
+
+const normalizeShippingAddress = (address) => {
+  if (!address || typeof address !== 'object') return null;
+
+  const requiredFields = ['fullName', 'phone', 'addressLine1', 'city', 'state', 'postalCode', 'country'];
+  const normalized = {};
+
+  for (const field of requiredFields) {
+    const value = typeof address[field] === 'string' ? address[field].trim() : String(address[field] || '').trim();
+    if (!value) return null;
+    normalized[field] = value;
+  }
+
+  normalized.addressLine2 = typeof address.addressLine2 === 'string' ? address.addressLine2.trim() : '';
+  return normalized;
+};
+
+const validateCartForOrder = async (cartItems) => {
+  let total = 0;
+  const validatedItems = [];
+
+  for (const item of cartItems || []) {
+    if (!item || !item.product) {
+      throw new Error('One or more cart items are missing a valid product.');
+    }
+
+    const productId = item.product._id || item.product;
+    const quantity = Number(item.quantity || 0);
+
+    if (!productId || !Number.isInteger(quantity) || quantity < 1) {
+      throw new Error('One or more cart items have an invalid quantity.');
+    }
+
+    const product = await Product.findById(productId);
+    if (!product || !product.isActive) {
+      throw new Error('One or more products are unavailable.');
+    }
+
+    if (product.stock < quantity) {
+      throw new Error(`Only ${product.stock} item(s) remain for ${product.name}.`);
+    }
+
+    const trustedPrice = Number(product.price || 0);
+    validatedItems.push({
+      product: product._id,
+      productName: product.name,
+      productSlug: product.slug || '',
+      quantity,
+      price: trustedPrice,
+      image: product.images?.[0] || '',
+    });
+    total += trustedPrice * quantity;
+  }
+
+  return { validatedItems, total };
+};
 
 export const getUserOrders = async (req, res) => {
   try {
@@ -97,9 +154,8 @@ quantity: item.quantity,
 export const createOrderFromCart = async (req, res) => {
   try {
     const user = req.user;
-
-    // Get user's cart
     const cart = await Cart.findOne({ user: user._id }).populate('items.product');
+
     if (!cart || cart.items.length === 0) {
       return res.status(400).json({
         success: false,
@@ -107,30 +163,34 @@ export const createOrderFromCart = async (req, res) => {
       });
     }
 
-    // Build order items from cart
-    const items = cart.items.map((item) => ({
-      product: item.product._id,
-      productName: item.product.name,
-      productSlug: item.product.slug || '',
-      quantity: item.quantity,
-      price: item.price,
-      image: item.product.images?.[0] || '',
-    }));
-
-    // Calculate total from server-side data (trusted)
-    const total = cart.items.reduce(
-      (acc, item) => acc + (item.price || 0) * (item.quantity || 1),
-      0
+    const shippingAddressFromRequest = normalizeShippingAddress(req.body?.shippingAddress);
+    const userRecord = await User.findById(user._id);
+    const fallbackAddress = normalizeShippingAddress(
+      userRecord?.addresses?.find((address) => address.isDefault) || userRecord?.addresses?.[0]
     );
 
-    // Shipping address from request body (optional - Phase 5 support)
-    const shippingAddress = req.body.shippingAddress || undefined;
+    const shippingAddress = shippingAddressFromRequest || fallbackAddress;
+    if (!shippingAddress) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid shipping address before checkout.',
+      });
+    }
 
-    // Create order
+    let validatedOrder;
+    try {
+      validatedOrder = await validateCartForOrder(cart.items);
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
     const order = new Order({
       user: user._id,
-      items,
-      total,
+      items: validatedOrder.validatedItems,
+      total: validatedOrder.total,
       paymentStatus: 'pending',
       paymentProvider: 'stripe',
       status: 'pending',
@@ -138,11 +198,9 @@ export const createOrderFromCart = async (req, res) => {
     });
 
     await order.save();
-
-    // Clear cart
     await cart.deleteOne();
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       data: {
         order: {
@@ -158,7 +216,7 @@ export const createOrderFromCart = async (req, res) => {
     });
   } catch (error) {
     console.error('[order] Create order from cart error:', error.message);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Failed to create order',
     });
@@ -167,10 +225,16 @@ export const createOrderFromCart = async (req, res) => {
 
 export const createCheckoutSession = async (req, res) => {
   try {
-    const { orderId } = req.params;
+    if (!stripe) {
+      return res.status(500).json({
+        success: false,
+        message: 'Stripe is not configured. Add STRIPE_SECRET_KEY before starting checkout.',
+      });
+    }
 
-    // Find order and validate ownership
+    const { orderId } = req.params;
     const order = await Order.findById(orderId);
+
     if (!order) {
       return res.status(404).json({
         success: false,
@@ -178,7 +242,6 @@ export const createCheckoutSession = async (req, res) => {
       });
     }
 
-    // Check authentication - order belongs to authenticated user
     if (order.user.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
@@ -186,7 +249,6 @@ export const createCheckoutSession = async (req, res) => {
       });
     }
 
-    // Validate order is payable
     if (order.paymentStatus === 'paid') {
       return res.status(400).json({
         success: false,
@@ -194,12 +256,28 @@ export const createCheckoutSession = async (req, res) => {
       });
     }
 
-    if (order.paymentStatus === 'failed') {
-      // Option: allow retry or block - we'll allow retry but mark clearly
-      // For now, check if we should allow
+    for (const item of order.items || []) {
+      const product = await Product.findById(item.product);
+      if (!product || !product.isActive) {
+        return res.status(400).json({
+          success: false,
+          message: `Product ${item.productName} is no longer available.`,
+        });
+      }
+
+      if (product.stock < item.quantity) {
+        return res.status(409).json({
+          success: false,
+          message: `Only ${product.stock} item(s) remain for ${product.name}.`,
+        });
+      }
+
+      item.price = Number(product.price || 0);
     }
 
-    // Create Stripe Checkout Session
+    order.total = order.items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 1), 0);
+    await order.save();
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: order.items.map((item) => ({
@@ -210,13 +288,13 @@ export const createCheckoutSession = async (req, res) => {
             description: item.productSlug || '',
             images: item.image ? [item.image] : [],
           },
-          unit_amount: Math.round(item.price * 100),
+          unit_amount: Math.round(Number(item.price || 0) * 100),
         },
         quantity: item.quantity,
       })),
       mode: 'payment',
       success_url: `${process.env.CLIENT_URL}/order-success?session_id={CHECKOUT_SESSION_ID}&orderId=${order._id}`,
-      cancel_url: `${process.env.CLIENT_URL}/cart?cancelled=true`,
+      cancel_url: `${process.env.CLIENT_URL}/checkout?cancelled=true`,
       metadata: {
         orderId: order._id.toString(),
         userId: order.user.toString(),
@@ -224,18 +302,17 @@ export const createCheckoutSession = async (req, res) => {
       client_reference_id: order._id.toString(),
     });
 
-    // Update order with Stripe session ID
     order.stripeSessionId = session.id;
     await order.save();
 
-    res.json({
+    return res.json({
       success: true,
       sessionId: session.id,
       url: session.url,
     });
   } catch (error) {
     console.error('[payment] Create checkout session error:', error.message);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Failed to create checkout session',
     });
@@ -246,14 +323,27 @@ export const webhook = async (req, res) => {
   let event;
 
   try {
-    // Verify Stripe webhook signature
+    if (!stripe) {
+      return res.status(500).json({
+        success: false,
+        message: 'Stripe is not configured. Add STRIPE_SECRET_KEY before processing webhooks.',
+      });
+    }
+
+    if (!process.env.STRIPE_WEBHOOK_SECRET) {
+      return res.status(500).json({
+        success: false,
+        message: 'Webhook secret is not configured.',
+      });
+    }
+
     const signature = req.headers['stripe-signature'];
 
     let rawBody;
     if (Buffer.isBuffer(req.body)) {
       rawBody = req.body.toString('utf8');
     } else {
-      rawBody = JSON.stringify(req.body);
+      rawBody = JSON.stringify(req.body || {});
     }
 
     event = stripe.webhooks.constructEvent(

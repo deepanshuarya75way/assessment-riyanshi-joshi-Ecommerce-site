@@ -5,13 +5,13 @@ import {
   createReview,
   getProductReviews,
   getMyReview,
+  getReviewEligibility,
   updateReview,
   deleteReview,
 } from '../controllers/review.controller.js';
 
-const router = Router();
+const router = Router({ mergeParams: true });
 
-// Validation for create review
 const reviewValidation = [
   body('rating')
     .notEmpty()
@@ -19,31 +19,23 @@ const reviewValidation = [
     .isInt({ min: 1, max: 5 })
     .withMessage('Rating must be between 1 and 5'),
   body('title')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim()
     .isLength({ max: 100 })
     .withMessage('Title must be at most 100 characters'),
   body('comment')
-    .optional()
     .trim()
-    .isLength({ max: 2000 })
-    .withMessage('Comment must be at most 2000 characters'),
+    .notEmpty()
+    .withMessage('Review comment is required')
+    .isLength({ min: 1, max: 2000 })
+    .withMessage('Review comment must be between 1 and 2000 characters'),
 ];
 
-router.get('/:productId/reviews', getProductReviews);
-router.post(
-  '/:productId/reviews',
-  authenticate,
-  reviewValidation,
-  createReview
-);
-router.get('/:productId/my-review', authenticate, getMyReview);
-router.put(
-  '/:reviewId',
-  authenticate,
-  reviewValidation,
-  updateReview
-);
+router.get('/', getProductReviews);
+router.get('/eligibility', authenticate, getReviewEligibility);
+router.post('/', authenticate, reviewValidation, createReview);
+router.get('/my-review', authenticate, getMyReview);
+router.put('/:reviewId', authenticate, reviewValidation, updateReview);
 router.delete('/:reviewId', authenticate, deleteReview);
 
 export default router;

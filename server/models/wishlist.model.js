@@ -1,4 +1,5 @@
-const mongoose = require("mongoose");
+import mongoose from 'mongoose';
+
 const Schema = mongoose.Schema;
 
 const wishlistItemSchema = new Schema({
@@ -27,5 +28,6 @@ wishlistSchema.methods.removeProduct = function (productId) {
   this.products = this.products.filter((item) => !item.product.equals(productId));
 };
 
-const Wishlist = mongoose.model("Wishlist", wishlistSchema);
-module.exports = Wishlist;
+const Wishlist = mongoose.model('Wishlist', wishlistSchema);
+
+export default Wishlist;

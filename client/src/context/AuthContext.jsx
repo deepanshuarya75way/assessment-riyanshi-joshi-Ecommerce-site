@@ -53,6 +53,30 @@ export function AuthProvider({ children }) {
     return response.data;
   };
 
+  const addAddress = async (data) => {
+    const response = await authAPI.addAddress(data);
+    setUser(response.data.user);
+    return response.data;
+  };
+
+  const updateAddress = async (addressId, data) => {
+    const response = await authAPI.updateAddress(addressId, data);
+    setUser(response.data.user);
+    return response.data;
+  };
+
+  const deleteAddress = async (addressId) => {
+    const response = await authAPI.deleteAddress(addressId);
+    setUser(response.data.user);
+    return response.data;
+  };
+
+  const setDefaultAddress = async (addressId) => {
+    const response = await authAPI.setDefaultAddress(addressId);
+    setUser(response.data.user);
+    return response.data;
+  };
+
   const changePassword = async (data) => {
     const response = await authAPI.changePassword(data);
     setUser(response.data.user);
@@ -68,6 +92,10 @@ export function AuthProvider({ children }) {
     logout,
     refreshUser,
     updateProfile,
+    addAddress,
+    updateAddress,
+    deleteAddress,
+    setDefaultAddress,
     changePassword,
   };
 

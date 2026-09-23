@@ -5,23 +5,32 @@ import { AuthContext } from "../context/AuthContext.jsx";
 export const WishlistContext = createContext(null);
 
 export function WishlistProvider({ children }) {
-  const authContext = useContext(AuthContext);
+  const authContext = useContext(AuthContext) || { user: null };
   const [wishlist, setWishlist] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const getWishlist = useCallback(async () => {
+    if (!authContext.user) {
+      setWishlist(null);
+      setLoading(false);
+      return null;
+    }
+
     try {
       setLoading(true);
       setError(null);
       const response = await wishlistAPI.getWishlist();
       setWishlist(response.data);
+      return response.data;
     } catch (err) {
       setError(err.response?.data?.message || "Failed to load wishlist");
+      setWishlist(null);
+      return null;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [authContext.user]);
 
   const addToWishlist = useCallback(async (productId) => {
     try {
@@ -69,21 +78,31 @@ export function WishlistProvider({ children }) {
   }, []);
 
   const isInWishlist = useCallback((productId) => {
-    if (!wishlist || !wishlist.products) return false;
-    return wishlist.products.some((item) => item.product.equals(productId));
+    if (!productId || !wishlist || !Array.isArray(wishlist.products)) return false;
+    return wishlist.products.some((item) => {
+      if (!item) return false;
+      const itemProductId = typeof item.product === 'string' ? item.product : item?.product?._id;
+      return itemProductId && itemProductId.toString() === productId.toString();
+    });
   }, [wishlist]);
 
   useEffect(() => {
     if (authContext.user) {
       getWishlist();
+      return;
     }
-  }, [getWishlist]);
+
+    setWishlist(null);
+    setError(null);
+    setLoading(false);
+  }, [authContext.user, getWishlist]);
 
   const value = {
     wishlist,
     products: wishlist ? wishlist.products : [],
     loading,
     error,
+    getWishlist,
     addToWishlist,
     removeFromWishlist,
     clearWishlist,

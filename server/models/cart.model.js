@@ -1,4 +1,5 @@
-const mongoose = require("mongoose");
+import mongoose from 'mongoose';
+
 const Schema = mongoose.Schema;
 
 const cartItemSchema = new Schema({
@@ -40,5 +41,6 @@ cartSchema.methods.updateItemQuantity = function (productId, quantity) {
   return true;
 };
 
-const Cart = mongoose.model("Cart", cartSchema);
-module.exports = Cart;
+const Cart = mongoose.model('Cart', cartSchema);
+
+export default Cart;
