@@ -3,6 +3,7 @@ import Product from '../models/product.model.js';
 import User from '../models/user.model.js';
 import Cart from '../models/cart.model.js';
 import Stripe from 'stripe';
+import applyCoupon from '../utils/applyCoupon.js';
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2022-08-01',
@@ -27,6 +28,7 @@ const normalizeShippingAddress = (address) => {
 const validateCartForOrder = async (cartItems) => {
   let total = 0;
   const validatedItems = [];
+  const products = [];
 
   for (const item of cartItems || []) {
     if (!item || !item.product) {
@@ -50,6 +52,7 @@ const validateCartForOrder = async (cartItems) => {
     }
 
     const trustedPrice = Number(product.price || 0);
+    products.push(product);
     validatedItems.push({
       product: product._id,
       productName: product.name,
@@ -61,7 +64,23 @@ const validateCartForOrder = async (cartItems) => {
     total += trustedPrice * quantity;
   }
 
-  return { validatedItems, total };
+  return { validatedItems, products, total };
+};
+
+export const ValidateCoupon = async (req, res)=> {
+  try{
+    const address = normalizeShippingAddrress(req.body?.shippingAddress);
+    if(!address) return res.status(400).json({message: 'Select a valid shipping address first.'});
+    const cart = await Cart.findOne({user: req.user._id}).populate('items.product');
+    if(!cart?.items?.length) return res.status(400).json({message:'Cart is empty'});
+    const Validated = await validateCartForOrder(cart.items);
+    const coupon = await applyCoupon(req.body?.couponCode, {
+      userId: req.user._id, address, products:validate.products , subtotal: validate.total,
+    });
+    res.json({success: true, data: coupon});
+  }catch(error){
+    res.status(400).json({success: false, message: error.message});
+  }
 };
 
 export const getUserOrders = async (req, res) => {
@@ -133,6 +152,9 @@ quantity: item.quantity,
           price: item.price,
           image: item.image,
         })),
+        subtotal: order.subtotal ?? order.total,
+        discount: order.discount || 0,
+        couponCode: order.couponCode || '',
         total: order.total,
         paymentStatus: order.paymentStatus,
         paymentProvider: order.paymentProvider,
@@ -187,6 +209,17 @@ export const createOrderFromCart = async (req, res) => {
       });
     }
 
+    let coupon;
+    try{
+      coupon = await applyCoupon(req.body?.couponCode, {
+        usewrId: user._id,
+        address: shippingAddress,
+        products:validatedOrder.products,
+        subtotal: validatedOrder.total,
+      });
+    }catch(error){
+      return req.status(400).json({success:false, message: error.message});
+    }
     const order = new Order({
       user: user._id,
       items: validatedOrder.validatedItems,
@@ -207,6 +240,8 @@ export const createOrderFromCart = async (req, res) => {
           _id: order._id,
           orderNumber: order.orderNumber,
           total: order.total,
+          discount: order.discount,
+          couponCode: order.couponCode,
           paymentStatus: order.paymentStatus,
           status: order.status,
           shippingAddress: order.shippingAddress,
@@ -256,6 +291,7 @@ export const createCheckoutSession = async (req, res) => {
       });
     }
 
+    const products =[];
     for (const item of order.items || []) {
       const product = await Product.findById(item.product);
       if (!product || !product.isActive) {
@@ -273,14 +309,31 @@ export const createCheckoutSession = async (req, res) => {
       }
 
       item.price = Number(product.price || 0);
+      products.push(product);
     }
 
-    order.total = order.items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 1), 0);
+    order.subtotal = order.items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 1), 0);
+    
+    let coupon;
+    try{
+      coupon = await applyCoupon(order.couponCode , {
+        userId: order.user, address: order.shippingAddress, products, subtotal: order.subtotal,
+      });
+    }catch(error){
+      return res.status(400).json ({success: false, message: error.message});
+    }
+    order.discount = coupon.discount;
+    order.total = coupon.total;
     await order.save();
 
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: order.items.map((item) => ({
+    const lineItems = order.discount ?[{
+      price_data: {
+        currency: 'usd',
+        product_data: { name :`Order ${order.orderNumber}`, description : `Coupon ${order.couponCode} applied`},
+        unit_amount:Math.round(order.total*100),
+      },
+      quantity:1,
+    }] : order.items.map((item) => ({
         price_data: {
           currency: 'usd',
           product_data: {
@@ -292,6 +345,11 @@ export const createCheckoutSession = async (req, res) => {
         },
         quantity: item.quantity,
       })),
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: lineItems,
+      })
       mode: 'payment',
       success_url: `${process.env.CLIENT_URL}/order-success?session_id={CHECKOUT_SESSION_ID}&orderId=${order._id}`,
       cancel_url: `${process.env.CLIENT_URL}/checkout?cancelled=true`,

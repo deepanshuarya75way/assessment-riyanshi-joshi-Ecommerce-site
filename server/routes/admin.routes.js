@@ -18,6 +18,9 @@ import {
   deleteAdminReview,
   getAdminUsers,
   updateAdminUserStatus,
+  getAdminCoupons,
+  createAdminCoupon,
+  updateAdminCoupon,
 } from '../controllers/admin.controller.js';
 
 const router = Router();
@@ -111,5 +114,9 @@ router.delete('/reviews/:id', deleteAdminReview);
 
 router.get('/users', getAdminUsers);
 router.put('/users/:id/status', userStatusValidation, updateAdminUserStatus);
+
+router.get('/coupons', getAdminCoupons);
+router.post('/coupons', createAdminCoupon);
+router.put('/coupons/id', updateAdminCoupon);
 
 export default router;
