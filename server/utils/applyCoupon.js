@@ -1,7 +1,7 @@
 import Coupon from '../models/coupon.model.js';
 import Product from '../models/product.model.js';
 
-export default async function applyCoupon(CommandEvent, {userId, address, products, subtotal}){
+export default async function applyCoupon(code, {userId, address, products, subtotal}){
   if (!String(code || '').trim()) return {code: '', discount: 0, total: subtotal };
 
   const coupon = await Coupon.findOne({ code: String(code).trim().toUpperCase(), isActive: true});

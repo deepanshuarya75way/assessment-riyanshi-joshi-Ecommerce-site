@@ -718,7 +718,7 @@ const couponFields = (body) => ({
 })
 
 export const getAdminCoupons = async (req, res) => {
-  const coupons = awaits Coupon.find().populate('categories', 'name').populate('users', 'fulName email').sort({createdAt:-1});
+  const coupons = await Coupon.find().populate('categories', 'name').populate('users', 'fullName email').sort({createdAt:-1});
   res.json({ success: true, coupons});
 }
 
@@ -738,6 +738,6 @@ export const updateAdminCoupon = async (req, res)=>{
     if(!coupon) return res.status(404).json({message: 'Coupon not found'});
     res.json({ success: true, coupon});
   }catch (error){
-    res.status(error.code === 11000 ? 409 : 400).json({message: error.code === 11000 ? 'Coupon code already exists.' : error.})
+    res.status(error.code === 11000 ? 409 : 400).json({message: error.code === 11000 ? 'Coupon code already exists.' : error.message})
   }
 }

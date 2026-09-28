@@ -69,13 +69,13 @@ const validateCartForOrder = async (cartItems) => {
 
 export const ValidateCoupon = async (req, res)=> {
   try{
-    const address = normalizeShippingAddrress(req.body?.shippingAddress);
+    const address = normalizeShippingAddress(req.body?.shippingAddress);
     if(!address) return res.status(400).json({message: 'Select a valid shipping address first.'});
     const cart = await Cart.findOne({user: req.user._id}).populate('items.product');
     if(!cart?.items?.length) return res.status(400).json({message:'Cart is empty'});
     const Validated = await validateCartForOrder(cart.items);
     const coupon = await applyCoupon(req.body?.couponCode, {
-      userId: req.user._id, address, products:validate.products , subtotal: validate.total,
+      userId: req.user._id, address, products:Validated.products , subtotal: Validated.total,
     });
     res.json({success: true, data: coupon});
   }catch(error){
@@ -212,18 +212,21 @@ export const createOrderFromCart = async (req, res) => {
     let coupon;
     try{
       coupon = await applyCoupon(req.body?.couponCode, {
-        usewrId: user._id,
+        userId: user._id,
         address: shippingAddress,
         products:validatedOrder.products,
         subtotal: validatedOrder.total,
       });
     }catch(error){
-      return req.status(400).json({success:false, message: error.message});
+      return res.status(400).json({success:false, message: error.message});
     }
     const order = new Order({
       user: user._id,
       items: validatedOrder.validatedItems,
-      total: validatedOrder.total,
+      subtotal: validatedOrder.total,
+      discount: coupon.discount,
+      couponCode: coupon.code,
+      total: coupon.total,
       paymentStatus: 'pending',
       paymentProvider: 'stripe',
       status: 'pending',
@@ -344,12 +347,11 @@ export const createCheckoutSession = async (req, res) => {
           unit_amount: Math.round(Number(item.price || 0) * 100),
         },
         quantity: item.quantity,
-      })),
+      }));
 
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: lineItems,
-      })
       mode: 'payment',
       success_url: `${process.env.CLIENT_URL}/order-success?session_id={CHECKOUT_SESSION_ID}&orderId=${order._id}`,
       cancel_url: `${process.env.CLIENT_URL}/checkout?cancelled=true`,

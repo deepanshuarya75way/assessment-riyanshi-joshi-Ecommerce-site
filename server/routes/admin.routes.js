@@ -117,6 +117,6 @@ router.put('/users/:id/status', userStatusValidation, updateAdminUserStatus);
 
 router.get('/coupons', getAdminCoupons);
 router.post('/coupons', createAdminCoupon);
-router.put('/coupons/id', updateAdminCoupon);
+router.put('/coupons/:id', updateAdminCoupon);
 
 export default router;

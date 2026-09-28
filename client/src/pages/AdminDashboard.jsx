@@ -61,7 +61,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [savingProduct, setSavingProduct] = useState(false);
   const [savingCategory, setSavingCategory] = useState(false);
-  const [couponForm, setCouponFrom] = useState(emptyCouponForm);
+  const [couponForm, setCouponForm] = useState(emptyCouponForm);
   const [selectedCouponId, setSelectedCouponId] = useState('');
   const[savingCoupon, setSavingCoupon] = useState(false);
   const [error, setError] = useState('');
@@ -130,7 +130,7 @@ export default function AdminDashboard() {
         loadOrders(),
         loadReviews(),
         loadUsers(),
-        loadcoupons(),
+        loadCoupons(),
       ]);
     } catch (err) {
       setError(err.response?.data?.message || 'Unable to load admin dashboard data.');
@@ -365,6 +365,7 @@ const handleCouponSubmit = async (event) => {
       
     };
     if (selectedCouponId) await adminAPI.updateCoupon(selectedCouponId, payload);
+    else await adminAPI.createCoupon(payload);
     resetCouponForm();
     await loadCoupons();
   }catch (err){
@@ -376,7 +377,7 @@ const handleCouponSubmit = async (event) => {
 
 const handleEditCoupon = (coupon) => {
   setSelectedCouponId(coupon._id);
-  setCouponFrom({
+  setCouponForm({
     code: coupon.code,
     discountPercent: coupon.discountPercent,
     regions: coupon.regions.join(', '),
@@ -732,7 +733,7 @@ const handleEditCoupon = (coupon) => {
               <label key={name}>
                 {name}
                 <select name={name} multiple value={couponForm[name]} onChange={handleCouponChange}>
-                  {list.map((item) => <otion key= {item._id} value={item.id}>{item.name || item.fullName}</otion>)}
+                  {list.map((item) => <option key= {item._id} value={item._id}>{item.name || item.fullName}</option>)}
                 </select>
 
               </label>

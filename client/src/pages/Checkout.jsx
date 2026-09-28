@@ -404,9 +404,9 @@ export default function Checkout() {
             </div>
 
             {appliedCoupon && (
-              <div className="flex justify-between text-sm textemerald-700">
-                <span>Coupon ({appliedCoupon.discountpercent}%)</span>
-                <span>-${appliedCoupon.discount.tofixed(2)}</span>
+              <div className="flex justify-between text-sm text-emerald-700">
+                <span>Coupon ({appliedCoupon.discountPercent}%)</span>
+                <span>-${appliedCoupon.discount.toFixed(2)}</span>
                 </div>
             )}
             <div className="flex justify-between text-base font-semibold text-slate-900">
