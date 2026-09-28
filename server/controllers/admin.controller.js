@@ -5,6 +5,7 @@ import Product from '../models/product.model.js';
 import Category from '../models/category.model.js';
 import Order from '../models/order.model.js';
 import Review from '../models/review.model.js';
+import Coupon from '../models/coupon.model.js';
 
 const normalizeSearchTerm = (value = '') => String(value).trim();
 
@@ -706,3 +707,37 @@ export const updateAdminUserStatus = async (req, res) => {
     });
   }
 };
+
+const couponFields = (body) => ({
+  code: String(body.code ||'').trim().toUpperCase(),
+  discountPercent: Number(body.discountPercent),
+  regions: Array.isArray(body.regions) ? body.regions.map((item) => String(item).trim()).filter(Boolean) : [],
+  categories:  Array.isArray(body.categories) ? body.categories : [],
+  users: Array.isArray(body.users) ? body.users :[],
+  isActive : body.isActive !== false,
+})
+
+export const getAdminCoupons = async (req, res) => {
+  const coupons = awaits Coupon.find().populate('categories', 'name').populate('users', 'fulName email').sort({createdAt:-1});
+  res.json({ success: true, coupons});
+}
+
+export const createAdminCoupon = async (req, res) =>{
+  try {
+    const coupon = await Coupon.create(couponFields(req.body));
+    res.status(201).json({success: true, coupon});
+  }catch(error){
+    res.status(error.code === 11000 ? 409 : 400).json({message : error.code === 11000 ? 'Coupon code already exists.' : error.message});
+
+  }
+};
+
+export const updateAdminCoupon = async (req, res)=>{
+  try {
+    const coupon = await Coupon.findByIdAndUpdate(req.params.id, couponFields(req.body), {new: true, runValidators: true});
+    if(!coupon) return res.status(404).json({message: 'Coupon not found'});
+    res.json({ success: true, coupon});
+  }catch (error){
+    res.status(error.code === 11000 ? 409 : 400).json({message: error.code === 11000 ? 'Coupon code already exists.' : error.})
+  }
+}
