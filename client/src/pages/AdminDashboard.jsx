@@ -21,6 +21,9 @@ const emptyCategoryForm = {
   isActive: true,
 };
 
+const emptyCouponForm = {
+  code: '', discountPercent: '', regions: '', categories: [], users: [], isActive: true,
+};
 const formatCurrency = (value) => {
   const amount = Number(value || 0);
   return new Intl.NumberFormat('en-US', {
@@ -38,7 +41,7 @@ export default function AdminDashboard() {
   const [orders, setOrders] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [users, setUsers] = useState([]);
-
+  const [coupons, setCoupons] = useState([]);
   const [productForm, setProductForm] = useState(emptyProductForm);
   const [selectedProductId, setSelectedProductId] = useState('');
   const [selectedOrderId, setSelectedOrderId] = useState('');
@@ -58,6 +61,9 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [savingProduct, setSavingProduct] = useState(false);
   const [savingCategory, setSavingCategory] = useState(false);
+  const [couponForm, setCouponFrom] = useState(emptyCouponForm);
+  const [selectedCouponId, setSelectedCouponId] = useState('');
+  const[savingCoupon, setSavingCoupon] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -109,6 +115,10 @@ export default function AdminDashboard() {
     setUsers(response.data.users || []);
   };
 
+  const loadCoupons = async () => {
+    const response = await adminAPI.getCoupons();
+    setCoupons(response.data.coupons || []);
+  };
   const loadDashboard = async () => {
     setLoading(true);
     setError('');
@@ -120,6 +130,7 @@ export default function AdminDashboard() {
         loadOrders(),
         loadReviews(),
         loadUsers(),
+        loadcoupons(),
       ]);
     } catch (err) {
       setError(err.response?.data?.message || 'Unable to load admin dashboard data.');
@@ -329,6 +340,51 @@ export default function AdminDashboard() {
       setError(err.response?.data?.message || 'Unable to update user status.');
     }
   };
+
+const resetCouponForm = () => {
+  setCouponForm(emptyCouponForm);
+  setSelectedCouponId('');
+};
+
+const handleCouponChange = ({target}) => {
+  let value = target.value;
+  if (target.type === 'checkbox') value = target.checked;
+  if (target.multiple) value = [...target.selectedOptions].map((item)=> item.value);
+  setCouponForm((form)=> ({...form, [target.name]: value }));
+}
+
+const handleCouponSubmit = async (event) => {
+  event.preventDefault();
+  setSavingCoupon(true);
+  setError('');
+  try{
+    const payload = {
+      ...couponForm,
+        discountPercent: Number(couponForm.discountPercent),
+        regions: couponForm.regions.split(',').map((item) =>item.trim()).filter(Boolean),
+      
+    };
+    if (selectedCouponId) await adminAPI.updateCoupon(selectedCouponId, payload);
+    resetCouponForm();
+    await loadCoupons();
+  }catch (err){
+    setError(err.response?.data?.message || 'Unable to save coupon');
+  }finally{
+    setSavingCoupon(false);
+  }
+};
+
+const handleEditCoupon = (coupon) => {
+  setSelectedCouponId(coupon._id);
+  setCouponFrom({
+    code: coupon.code,
+    discountPercent: coupon.discountPercent,
+    regions: coupon.regions.join(', '),
+    categories:coupon.categories.map((item)=> item._id || item),
+    users: coupon.users.map((item) => item._id || item),
+    isActive: coupon.isActive,
+  });
+};
 
   const overviewCards = overview
     ? [
@@ -660,6 +716,10 @@ export default function AdminDashboard() {
               </div>
             </section>
           </div>
+
+          <section>
+            
+          </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

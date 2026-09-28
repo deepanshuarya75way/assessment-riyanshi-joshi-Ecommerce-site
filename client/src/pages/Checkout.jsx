@@ -30,6 +30,8 @@ export default function Checkout() {
   const [addressForm, setAddressForm] = useState(emptyAddressForm);
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
 
   const cancelled = new URLSearchParams(location.search).get('cancelled') === 'true';
 
@@ -60,7 +62,7 @@ export default function Checkout() {
     ? cart.items.reduce((total, item) => total + Number(item.price || 0) * Number(item.quantity || 1), 0)
     : 0;
   const shipping = 0;
-  const finalTotal = subtotal + shipping;
+  const finalTotal = appliedCoupon?.total ?? subtotal + shipping;
 
   const resetAddressForm = () => {
     setAddressForm(emptyAddressForm);
@@ -112,6 +114,7 @@ export default function Checkout() {
       }
 
       setFormSuccess(editingAddressId ? 'Shipping address updated.' : 'Shipping address added.');
+      setAppliedCoupon(null);
       resetAddressForm();
       await refreshUser();
     } catch (err) {
@@ -135,6 +138,23 @@ export default function Checkout() {
     });
   };
 
+  const handleApplyCoupon = async () => {
+    if(!selectedAddress return setFormError('Select a shipping address before applyimng coupon'));
+    if (!couponCode.trim()) return setFormError('enter valid coupon'));
+    setFormError('');
+    setFormSuccess('');
+    try{
+      const response = await api.post('/orders/validate-coupon',{
+        couponCode,
+        shippingAddress: selectedAddress,
+      });
+      setAppliedCoupon(response.data.data);
+      setFormSuccess(`Coupon ${response.data.data.code} applied`);
+    }catch(err){
+      setAppliedCoupon(null);
+      setFormError(err.response?.data?.message || 'Unable to apply coupon.');
+    }
+  };
   const handlePlaceOrder = async () => {
     if (!selectedAddress) {
       setFormError('Please select a valid shipping address before placing the order.');
@@ -151,12 +171,17 @@ export default function Checkout() {
       return;
     }
 
+    if(couponCode.trim() && !appliedCoupon){
+      setFormError('Apply the coupon before continuing.');
+      return;
+    }
     setIsSubmitting(true);
     setFormError('');
 
     try {
       const createOrderResponse = await api.post('/orders', {
         shippingAddress: selectedAddress,
+        couponCode: couponCode.trim(),
       });
 
       const createdOrder = createOrderResponse.data?.data?.order || createOrderResponse.data?.order || createOrderResponse.data;
@@ -247,7 +272,7 @@ export default function Checkout() {
                       type="radio"
                       name="shippingAddress"
                       checked={selectedAddressId === address._id}
-                      onChange={() => setSelectedAddressId(address._id)}
+                      onChange={() => {setSelectedAddressId(address._id); setAppliedCoupon(null);}}
                       className="mt-1"
                     />
                     <label htmlFor={`shipping-address-${address._id}`} className="min-w-0 flex-1 cursor-pointer text-sm text-slate-700">
@@ -357,6 +382,18 @@ export default function Checkout() {
           </div>
 
           <div className="space-y-2 rounded-xl bg-slate-50 p-4">
+            <div className="mb-3 flex gap-2">
+              <input
+              value={couponCode}
+              onChange={(event) => { setCouponCode(event.target.value.toUpperCase()); setAppliedCoupon(null);
+              }} 
+              placeholder = "Coupon code"
+              className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+              />
+
+              <button type="button" onClick={handleApplyCoupon} className="rounded-lg border border-indigo-300 px-3 py-2 text-sm font-medium ">Apply</button>
+
+            </div>
             <div className="flex justify-between text-sm text-slate-600">
               <span>Subtotal</span>
               <span>${subtotal.toFixed(2)}</span>
@@ -365,6 +402,13 @@ export default function Checkout() {
               <span>Shipping</span>
               <span>{shipping === 0 ? 'No charge' : `$${shipping.toFixed(2)}`}</span>
             </div>
+
+            {appliedCoupon && (
+              <div className="flex justify-between text-sm textemerald-700">
+                <span>Coupon ({appliedCoupon.discountpercent}%)</span>
+                <span>-${appliedCoupon.discount.tofixed(2)}</span>
+                </div>
+            )}
             <div className="flex justify-between text-base font-semibold text-slate-900">
               <span>Total</span>
               <span>${finalTotal.toFixed(2)}</span>

@@ -118,6 +118,8 @@ export default function OrderDetails() {
       <div>
         <p className="text-sm text-slate-500">Order total</p>
         <span className="text-3xl font-bold text-slate-900">${Number(order.total || 0).toFixed(2)}</span>
+        {order.couponCode && <p className="text-sm text-emerald-700">Coupon 
+          {order.couponCode}: -${Number(order.discount|| 0).toFixed(2)}</p>}
       </div>
 
       <h2 className="mb-4 text-lg font-semibold text-slate-900">Items</h2>
