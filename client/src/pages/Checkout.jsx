@@ -139,8 +139,8 @@ export default function Checkout() {
   };
 
   const handleApplyCoupon = async () => {
-    if(!selectedAddress return setFormError('Select a shipping address before applyimng coupon'));
-    if (!couponCode.trim()) return setFormError('enter valid coupon'));
+    if(!selectedAddress)return setFormError('Select a shipping address before applyimng coupon');
+    if (!couponCode.trim())return setFormError('enter valid coupon');
     setFormError('');
     setFormSuccess('');
     try{
