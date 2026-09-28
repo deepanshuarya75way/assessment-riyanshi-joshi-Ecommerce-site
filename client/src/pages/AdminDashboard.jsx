@@ -718,7 +718,45 @@ const handleEditCoupon = (coupon) => {
           </div>
 
           <section>
-            
+            <h2>Coupons</h2>
+            <form onSubmit={handleCouponSubmit}>
+              {['code', 'discountPercent', 'regions'].map((name) =>
+              <input
+              key={name} name={name}
+              value={couponForm[name]}
+              onChange={handleCouponChange}
+              placeholder={name}
+              />
+            )}
+            {[['categories', categories], ['users', users]].map (([name, list])=>
+              <label key={name}>
+                {name}
+                <select name={name} multiple value={couponForm[name]} onChange={handleCouponChange}>
+                  {list.map((item) => <otion key= {item._id} value={item.id}>{item.name || item.fullName}</otion>)}
+                </select>
+
+              </label>
+            )}
+
+            <label>
+              <input
+              name="isActive"
+              type="checkbox"
+              checked={couponForm.isActive}
+              onChange={handleCouponChange}
+              />
+              Active
+            </label>
+            <button>Save</button>
+            </form>
+            {coupons.map((coupon)=>
+            <button
+              key={coupon._id}
+              onClick={() => handleEditCoupon(coupon)}
+              >
+                {coupon.code} {coupon.discountPercent}%
+            </button>
+            )}
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
