@@ -3,9 +3,9 @@ dist/
 coverage/
 
 # .env
-.env.local
-.env.*.local
-!.env.example
+# .env.local
+# .env.*.local
+# !.env.example
 
 *.log
 npm-debug.log*
