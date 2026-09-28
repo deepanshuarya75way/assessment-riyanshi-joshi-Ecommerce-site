@@ -718,21 +718,22 @@ const handleEditCoupon = (coupon) => {
             </section>
           </div>
 
-          <section>
+          <section className="rounded border p-4">
             <h2>Coupons</h2>
-            <form onSubmit={handleCouponSubmit}>
+            <form onSubmit={handleCouponSubmit} className="grid gap-2">
               {['code', 'discountPercent', 'regions'].map((name) =>
               <input
               key={name} name={name}
               value={couponForm[name]}
               onChange={handleCouponChange}
               placeholder={name}
+              className="border p-2"
               />
             )}
             {[['categories', categories], ['users', users]].map (([name, list])=>
               <label key={name}>
                 {name}
-                <select name={name} multiple value={couponForm[name]} onChange={handleCouponChange}>
+                <select name={name} multiple value={couponForm[name]} onChange={handleCouponChange} className='block border p-2'>
                   {list.map((item) => <option key= {item._id} value={item._id}>{item.name || item.fullName}</option>)}
                 </select>
 
